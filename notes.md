@@ -1,0 +1,1 @@
+https://docs.bsky.app/docs/starter-templates/bots
