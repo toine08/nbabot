@@ -28,7 +28,7 @@ class Game():
         linescores = board.get_normalized_dict()['LineScore']
 
         # Format string for output
-        f = "{awayTeam} {awayScore} : {homeTeam} {homeScore}"
+        f = """--{awayTeam}:{awayScore}\n{homeTeam}:{homeScore}\n--"""
 
         for game in games:
             # Parse game details
