@@ -7,5 +7,7 @@ venv/
 node_modules/
 *.json
 
+*.lock
+
 
 
