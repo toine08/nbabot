@@ -89,9 +89,6 @@ class Game():
         for game in games:
             # Parse game details
 
-            gameTimeLTZ = parser.parse(game['GAME_DATE_EST']).replace(tzinfo=timezone.utc).astimezone(tz=None)
-            gameTimeFormatted = gameTimeLTZ.strftime('%Y-%m-%d %H:%M')
-
             # Extract scores from LineScore data
             away_team_id = game['VISITOR_TEAM_ID']
             home_team_id = game['HOME_TEAM_ID']
@@ -107,6 +104,8 @@ class Game():
                     homeScore=home_score,
                 )
             )
+        if results.length ==0:
+            results = "No games planned"
         return results
     
     def print_last_score(self):
@@ -149,3 +148,4 @@ class Game():
             json.dump(standing, outfile, indent=4)
         with open("future_games.json", 'w') as outfile:
             json.dump(future_games, outfile, indent=4)
+        
