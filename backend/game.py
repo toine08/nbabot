@@ -148,4 +148,6 @@ class Game():
             json.dump(standing, outfile, indent=4)
         with open("future_games.json", 'w') as outfile:
             json.dump(future_games, outfile, indent=4)
+            
+        print("JSON has been exported")
         
