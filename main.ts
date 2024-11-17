@@ -4,13 +4,14 @@ import GraphemeSplitter from "npm:grapheme-splitter";
 import { CronJob } from "cron";
 // import Bluesky agent
 import api from "@atproto/api";
-const { BskyAgent } = api; // RIP need module export
+const { BskyAgent } = api;
 
 // load .env file
 const env = await load({
   defaultsPath: null,
   restrictEnvAccessTo: ["BLUESKY_IDENTIFIER", "BLUESKY_PASSWORD"],
 });
+
 let dailyParentPostId: string | null = null;
 // get identifier and password from .env
 const IDENTIFIER = env["BLUESKY_IDENTIFIER"];
@@ -283,12 +284,13 @@ async function create_post_planned_games() {
   console.log("Thread posted successfully!");
 }
 
-
 async function updateData(){
   const command = new Deno.Command('python3', {
     args: [ "./backend/main.py" ],
   });
-  await command.output();
+  const { stdout, stderr } = await command.output();
+  console.log(new TextDecoder().decode(stdout));
+  console.log(new TextDecoder().decode(stderr));
 }
 
 
@@ -301,6 +303,11 @@ const retreiveData = new CronJob(scheduleExpressionRetreiveData, updateData);
 const last_games = new CronJob(scheduleExpression, create_post_last_games); // change to scheduleExpressionMinute for testing
 const standings = new CronJob(scheduleExpressionMondayMorning, create_post_standings);
 const planned_games = new CronJob(scheduleExpressionEveryDayAt18, create_post_planned_games)
+
+retreiveData.start()
+last_games.start()
+standings.start()
+planned_games.start()
 
 const testCronJob = new CronJob(scheduleExpressionMinute, async () => {
   await create_post_last_games();
