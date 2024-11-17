@@ -39,10 +39,10 @@ async function retryWithBackoff(fn: () => Promise<any>, retries: number = 5, del
 }
 
 // login to the client with retry mechanism
-/*await retryWithBackoff(() => agent.login({
+await retryWithBackoff(() => agent.login({
   identifier: IDENTIFIER,
   password: PASSWORD,
-}));*/
+}));
 
 async function get_last_scores(): Promise<string> {
   const decoder = new TextDecoder("utf-8");

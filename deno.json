@@ -1,0 +1,13 @@
+{
+  "tasks": {
+    "run": "deno run --allow-net=panthercap.us-east.host.bsky.network:443,bsky.social --allow-read=.env,.env.example,../backend/  --allow-env=BLUESKY_IDENTIFIER,BLUESKY_PASSWORD --allow-run=python3 main.ts"
+  },
+  "imports": {
+    "@atproto/api": "npm:@atproto/api@^0.13.16",
+    "@atproto/xrpc": "npm:@atproto/xrpc@^0.6.4",
+    "cron": "npm:cron@^3.2.1",
+    "grapheme-splitter": "npm:grapheme-splitter@^1.0.4",
+    "process": "npm:process@^0.11.10",
+    "std/": "https://deno.land/std@0.185.0/"
+  }
+}

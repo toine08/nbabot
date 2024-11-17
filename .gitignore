@@ -4,7 +4,7 @@ __pycache__/
 venv/
 
 node_modules/
-*.json
+backend/*json
 
 *.lock
 
