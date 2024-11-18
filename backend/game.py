@@ -104,7 +104,7 @@ class Game():
                     homeScore=home_score,
                 )
             )
-        if results.length ==0:
+        if not results:
             results = "No games planned"
         return results
     
