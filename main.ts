@@ -88,7 +88,7 @@ async function create_post_last_games() {
   const splited_post: string[] = [];
   const lastGamesScore = await get_last_scores();
   const resultOfTheNight = "Results of the night: ";
-  const maxContentLength = 300 - resultOfTheNight.length - 1; // Reserve space for "\n"
+  const maxContentLength = 300 - resultOfTheNight.length - 1 - 5; // Reserve space for "\n" and "#nba"
 
   let start = 0;
 
@@ -119,7 +119,7 @@ async function create_post_last_games() {
     if (index === 0) {
       // Post the first message and save its postId (URI) and CID
       const firstPostResponse = await agent.post({
-        text: `${resultOfTheNight}\n${post}`,
+        text: `${resultOfTheNight}\n${post}\n#nba`,
       });
 
       // Extract the URI and CID for root and parent
@@ -136,7 +136,7 @@ async function create_post_last_games() {
       // Post replies in the thread
       if (dailyParentPostId && rootCid && parentCid) {
         await agent.post({
-          text: post,
+          text: `${post}\n#nba`,
           reply: {
             root: {
               uri: rootUri,
@@ -173,7 +173,7 @@ async function create_post_standings() {
     const chunks = [standings.slice(0, half), standings.slice(half)];
 
     for (const chunk of chunks) {
-      const postText = `${conference} Standings:\n${chunk.join('\n')}`;
+      const postText = `${conference} Standings:\n${chunk.join('\n')}\n#nba`;
 
       const postResponse = await agent.post({
         text: postText,
@@ -191,7 +191,6 @@ async function create_post_standings() {
 
       parentUri = postResponse?.uri || null;
       parentCid = postResponse?.cid || null;
-      
 
       console.log(`Posted: ${postText}`, postText.length);
     }
@@ -206,7 +205,7 @@ async function create_post_planned_games() {
   const splited_post: string[] = [];
   const plannedGames = await get_future_games();
   const tonightGames = "Tonight's Games: ";
-  const maxContentLength = 300 - tonightGames.length - 1; // Reserve space for "\n"
+  const maxContentLength = 300 - tonightGames.length - 1 - 5; // Reserve space for "\n" and "#nba"
 
   let start = 0;
 
@@ -235,7 +234,7 @@ async function create_post_planned_games() {
 
   for (const [index, post] of splited_post.entries()) {
     if (index === 0) {
-      const text = `${tonightGames}\n${post}`;
+      const text = `${tonightGames}\n${post}\n#nba`;
       console.log(text, text.length);
       // Post the first message and save its postId (URI) and CID
       const firstPostResponse = await agent.post({
@@ -253,7 +252,7 @@ async function create_post_planned_games() {
 
       console.log(`First post created with URI: ${dailyParentPostId}, CID: ${rootCid}`);
     } else {
-      const text = post;
+      const text = `${post}\n#nba`;
       console.log(text, text.length);
       // Post replies in the thread
       if (dailyParentPostId && rootCid && parentCid) {
