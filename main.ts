@@ -46,7 +46,7 @@ await retryWithBackoff(() => agent.login({
 
 async function get_last_scores(): Promise<string> {
   const decoder = new TextDecoder("utf-8");
-  const data = await Deno.readFile("../backend/last_games_score.json");
+  const data = await Deno.readFile("./backend/last_games_score.json");
   const jsonString = decoder.decode(data);
   const games = JSON.parse(jsonString);
 
@@ -59,7 +59,7 @@ async function get_last_scores(): Promise<string> {
 
 async function get_standings(): Promise<{ east: string[], west: string[] }> {
   const decoder = new TextDecoder("utf-8");
-  const data = await Deno.readFile("../backend/standing.json");
+  const data = await Deno.readFile("./backend/standing.json");
   const jsonString = decoder.decode(data);
   const ranking = JSON.parse(jsonString);
 
@@ -71,7 +71,7 @@ async function get_standings(): Promise<{ east: string[], west: string[] }> {
 
 async function get_future_games(): Promise<string> {
   const decoder = new TextDecoder("utf-8");
-  const data = await Deno.readFile("../backend/future_games.json");
+  const data = await Deno.readFile("./backend/future_games.json");
   const jsonString = decoder.decode(data);
   const games = JSON.parse(jsonString);
   let futurGames = ""
