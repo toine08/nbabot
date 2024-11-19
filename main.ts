@@ -82,6 +82,11 @@ async function get_future_games(): Promise<string> {
   return futurGames
 }
 
+function getCurrentTimestamp(): string {
+  const now = new Date();
+  return now.toISOString().replace('T', ' ').split('.')[0];
+}
+
 async function create_post_last_games() {
   const splitter = new GraphemeSplitter();
   const splited_post: string[] = [];
@@ -134,7 +139,7 @@ async function create_post_last_games() {
       // Post replies in the thread
       if (dailyParentPostId !== "" && rootCid !== "" && parentCid !== "") {
         await agent.post({
-          text: `${post}\n #NBA`,
+          text: `${post}\n#NBA`,
           reply: {
             root: {
               uri: rootUri,
@@ -157,7 +162,7 @@ async function create_post_last_games() {
     }
   }
 
-  console.log("Thread posted successfully!");
+  console.log(`Thread posted successfully at ${getCurrentTimestamp()}!`);
 }
 
 async function create_post_standings() {
@@ -183,14 +188,14 @@ async function create_post_standings() {
           parent: {
             uri: parentUri,
             cid: parentCid,
-          }
+           }
         } : undefined,
       });
 
       parentUri = postResponse?.uri || null;
       parentCid = postResponse?.cid || null;
 
-      console.log(`Posted: ${postText}`, postText.length);
+      console.log(`[${getCurrentTimestamp()}]Posted:: ${postText}`, postText.length);
     }
   };
 
@@ -198,90 +203,96 @@ async function create_post_standings() {
   await splitAndPost("Western Conference", standings.west);
 }
 
+const MAX_POST_LENGTH = 300; // Adjust this value based on the actual maximum length allowed
+
 async function create_post_planned_games() {
-  const splitter = new GraphemeSplitter();
-  const splited_post: string[] = [];
   const plannedGames = await get_future_games();
-  const tonightGames = "Tonight's Games: ";
-  const maxContentLength = 300 - tonightGames.length - 1 - 5; // Reserve space for "\n" and "#NBA"
 
-  let start = 0;
+  if (plannedGames.length <= MAX_POST_LENGTH) {
+    // Post the entire plannedGames content as a single post
+    const firstPostResponse = await agent.post({
+      text: `Tonight's games: \n${plannedGames}`,
+    });
 
-  while (start < plannedGames.length) {
-    let end = start + maxContentLength;
-    const substring = plannedGames.slice(start, end);
+    const dailyParentPostId = firstPostResponse?.uri || "";
+    const rootCid = firstPostResponse?.cid || "";
 
-    const graphemeCount = splitter.splitGraphemes(substring).length;
+    console.log(`First post created with URI: ${dailyParentPostId}, CID: ${rootCid}`);
+  } else {
+    // Split the plannedGames content into multiple posts
+    const splited_post = splitText(plannedGames, MAX_POST_LENGTH);
+    console.log(splited_post)
 
-    if (graphemeCount <= maxContentLength) {
-      const splitIndex = plannedGames.lastIndexOf("\n", end);
-      if (splitIndex > start && splitIndex !== -1) {
-        end = splitIndex; // End the chunk at "\n"
-      }
-    }
+    let dailyParentPostId = "";
+    let rootUri = "";
+    let parentUri = "";
+    let rootCid = "";
+    let parentCid = "";
 
-    splited_post.push(plannedGames.slice(start, end).trim());
-    start = end + 1; // Skip over "\n" for the next start
-  }
-
-  let dailyParentPostId: string = "";
-  let rootUri: string = "";
-  let parentUri: string = "";
-  let rootCid: string = "";
-  let parentCid: string = "";
-
-  for (const [index, post] of splited_post.entries()) {
-    if (index === 0) {
-      const text = `${tonightGames}\n${post}\n #NBA`;
-      console.log(text, text.length);
-      // Post the first message and save its postId (URI) and CID
-      const firstPostResponse = await agent.post({
-        text: text,
-      });
-
-      // Extract the URI and CID for root and parent
-      dailyParentPostId = firstPostResponse?.uri || "";
-      rootUri = dailyParentPostId; // The root is the first post
-      parentUri = dailyParentPostId; // The parent is also the first post for the first reply
-
-      // Extract the cid from the first post response (this is the correct cid)
-      rootCid = firstPostResponse?.cid || ""; // Correct way to get CID from the response
-      parentCid = rootCid; // For the first reply, parentCID is the same as rootCID
-
-      console.log(`First post created with URI: ${dailyParentPostId}, CID: ${rootCid}`);
-    } else {
-      const text = `${post}\n #NBA`;
-      console.log(text, text.length);
-      // Post replies in the thread
-      if (dailyParentPostId !== "" && rootCid !== "" && parentCid !=="") {
-        await agent.post({
-          text: text,
-          reply: {
-            root: {
-              uri: rootUri,
-              cid: rootCid, // Use the correct cid from the response
-            },
-            parent: {
-              uri: parentUri,
-              cid: parentCid, // Use the correct cid from the response
-            }
-          },
+    for (const [index, post] of splited_post.entries()) {
+      if (index === 0) {
+        // Post the first message and save its postId (URI) and CID
+        const firstPostResponse = await agent.post({
+          text: `Tonight's game: \n${post}`,
         });
 
-        // Update parent URI and CID for the next reply
+        // Extract the URI and CID for root and parent
+        dailyParentPostId = firstPostResponse?.uri || "";
+        rootUri = dailyParentPostId;
         parentUri = dailyParentPostId;
-        parentCid = rootCid; // For replies, the parent CID remains the same as the root CID
+
+        rootCid = firstPostResponse?.cid || "";
+        parentCid = rootCid; // For the first reply, parentCID is the same as rootCID
+
+        console.log(`First post created with URI: ${dailyParentPostId}, CID: ${rootCid}`);
       } else {
-        console.error("No parent post ID or CID found, cannot continue thread.");
-        break;
+        // Post replies in the thread
+        if (dailyParentPostId !== "" && rootCid !== "" && parentCid !== "") {
+          await agent.post({
+            text: `${post}\n#NBA`,
+            reply: {
+              root: {
+                uri: rootUri,
+                cid: rootCid, // Use the correct cid from the response
+              },
+              parent: {
+                uri: parentUri,
+                cid: parentCid, // Use the correct cid from the response
+              },
+            },
+          });
+
+          // Update parent URI and CID for the next reply
+          parentUri = dailyParentPostId;
+          parentCid = rootCid; // For replies, the parent CID remains the same as the root CID
+        } else {
+          console.error("No parent post ID or CID found, cannot continue thread.");
+          break;
+        }
       }
     }
+    console.log(`[${getCurrentTimestamp()}] Thread posted successfully!`);
+  }
+}
+
+function splitText(text: string, maxLength: number): string[] {
+  const result = [];
+  let current = "";
+
+  for (const word of text.split(" ")) {
+    if ((current + word).length > maxLength) {
+      result.push(current.trim());
+      current = "";
+    }
+    current += word + " ";
   }
 
-  console.log("Thread posted successfully!");
-}
-await create_post_planned_games();
+  if (current.trim().length > 0) {
+    result.push(current.trim());
+  }
 
+  return result;
+}
 
 async function updateData(){
   const command = new Deno.Command('python3', {
@@ -297,7 +308,7 @@ const scheduleExpressionMinute = "* * * * *"; // Run once every minute for testi
 const scheduleExpression = "0 7 * * *"; // Run once every three hours in prod
 const scheduleExpressionMondayMorning = "0 8 * * 1";
 const scheduleExpressionEveryDayAt18 = "0 18 * * *"
-const scheduleExpressionRetreiveData = "10 6/2 * * *"
+const scheduleExpressionRetreiveData = "10 */4 * * *"
 const retreiveData = new CronJob(scheduleExpressionRetreiveData, updateData);
 const last_games = new CronJob(scheduleExpression, create_post_last_games); // change to scheduleExpressionMinute for testing
 const standings = new CronJob(scheduleExpressionMondayMorning, create_post_standings);
