@@ -237,7 +237,7 @@ async function create_post_planned_games() {
       const text = `${tonightGames}\n${post}\n#NBA`;
       console.log(text, text.length);
       // Post the first message and save its postId (URI) and CID
-      const firstPostResponse = await agent.post({
+      /*const firstPostResponse = await agent.post({
         text: text,
       });
 
@@ -248,7 +248,7 @@ async function create_post_planned_games() {
 
       // Extract the cid from the first post response (this is the correct cid)
       rootCid = firstPostResponse?.cid || null; // Correct way to get CID from the response
-      parentCid = rootCid; // For the first reply, parentCID is the same as rootCID
+      parentCid = rootCid; // For the first reply, parentCID is the same as rootCID*/
 
       console.log(`First post created with URI: ${dailyParentPostId}, CID: ${rootCid}`);
     } else {
@@ -283,6 +283,8 @@ async function create_post_planned_games() {
   console.log("Thread posted successfully!");
 }
 
+await create_post_planned_games()
+
 async function updateData(){
   const command = new Deno.Command('python3', {
     args: [ "./backend/main.py" ],
@@ -303,10 +305,10 @@ const last_games = new CronJob(scheduleExpression, create_post_last_games); // c
 const standings = new CronJob(scheduleExpressionMondayMorning, create_post_standings);
 const planned_games = new CronJob(scheduleExpressionEveryDayAt18, create_post_planned_games)
 
-/*retreiveData.start()
+retreiveData.start()
 last_games.start()
 standings.start()
-planned_games.start()*/
+planned_games.start()
 
 const testCronJob = new CronJob(scheduleExpressionMinute, async () => {
   await create_post_planned_games();

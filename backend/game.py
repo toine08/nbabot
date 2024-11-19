@@ -69,7 +69,12 @@ class Game():
                      
     def get_team_by_id(self,id):
         teamName = teams.find_team_name_by_id(id)
-        return teamName['full_name']
+        print(teamName["full_name"], len(teamName["full_name"]))
+        if len(teamName["full_name"])>12:
+            print(teamName)
+            return teamName["nickname"]
+        else:
+            return teamName['full_name']
         
     def get_last_games_score(self):
         results=[]
@@ -116,26 +121,44 @@ class Game():
 
     def get_futur_games(self):
         planned_games = []
-        today = datetime.now(timezone.utc)  # Make 'today' timezone-aware
+        today = datetime.now(timezone.utc)  # Ensure 'today' is timezone-aware
         today_str = today.strftime('%Y-%m-%d')
 
         board = scoreboardv2.ScoreboardV2(game_date=today_str)
         games = board.get_normalized_dict()['GameHeader']
-        
 
         f = "{awayTeam} vs. {homeTeam} @ {gameTimeLTZ}"
-        europe_tz = pytz.timezone('Europe/Paris')
+        est = pytz.timezone('US/Eastern')
+        zurich_tz = pytz.timezone('Europe/Zurich')
 
         for game in games:
             game_status = game["GAME_STATUS_TEXT"]
             if "Final" not in game_status:
-                gameTimeLTZ = parser.parse(game['GAME_DATE_EST']).replace(tzinfo=timezone.utc).astimezone(tz=None)
-                gameTimeFormatted = gameTimeLTZ.strftime('%H:%M')
-                planned_games.append(f.format(awayTeam=self.get_team_by_id(game['VISITOR_TEAM_ID']), homeTeam=self.get_team_by_id(game['HOME_TEAM_ID']), gameTimeLTZ=gameTimeFormatted))
+                game_time_str = game["GAME_STATUS_TEXT"].replace(" ET", "")
+                game_date_str = game["GAME_DATE_EST"].split("T")[0]
+                game_time = f"{game_date_str} {game_time_str}"
+                try:
+                    # Parse naive datetime and localize to Eastern Time
+                    est_time = est.localize(datetime.strptime(game_time, "%Y-%m-%d %I:%M %p"))
+
+                    gameTimeLTZ = est_time.astimezone(zurich_tz)
+
+                    gameTimeFormatted = gameTimeLTZ.strftime('%H:%M')
+
+                    planned_games.append(
+                        f.format(
+                            awayTeam=self.get_team_by_id(game['VISITOR_TEAM_ID']),
+                            homeTeam=self.get_team_by_id(game['HOME_TEAM_ID']),
+                            gameTimeLTZ=gameTimeFormatted
+                        )
+                    )
+                except ValueError as e:
+                    print(f"Error parsing game time '{game_time}': {e}")
 
         if not planned_games:
-            planned_games.append("No games planned")
+            planned_games.append("No game planned")
         return planned_games
+
 
 
     def return_json(self):
