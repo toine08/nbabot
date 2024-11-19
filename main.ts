@@ -82,7 +82,7 @@ async function get_future_games(): Promise<string> {
   return futurGames
 }
 
-export async function create_post_last_games() {
+async function create_post_last_games() {
   const splitter = new GraphemeSplitter();
   const splited_post: string[] = [];
   const lastGamesScore = await get_last_scores();
@@ -160,7 +160,7 @@ export async function create_post_last_games() {
   console.log("Thread posted successfully!");
 }
 
-export async function create_post_standings() {
+async function create_post_standings() {
   const standings = await get_standings();
 
   const splitAndPost = async (conference: string, standings: string[]) => {
@@ -198,7 +198,7 @@ export async function create_post_standings() {
   await splitAndPost("Western Conference", standings.west);
 }
 
-export async function create_post_planned_games() {
+async function create_post_planned_games() {
   const splitter = new GraphemeSplitter();
   const splited_post: string[] = [];
   const plannedGames = await get_future_games();
