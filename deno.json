@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "run": "deno run --allow-net=panthercap.us-east.host.bsky.network:443,bsky.social --allow-read=.env,.env.example,../backend/  --allow-env=BLUESKY_IDENTIFIER,BLUESKY_PASSWORD --allow-run=python3 main.ts"
+    "run": "deno run --allow-net=panthercap.us-east.host.bsky.network:443,bsky.social --allow-read=.env,.env.example,./backend/  --allow-env=BLUESKY_IDENTIFIER,BLUESKY_PASSWORD --allow-run=python3 main.ts"
   },
   "imports": {
     "@atproto/api": "npm:@atproto/api@^0.13.16",

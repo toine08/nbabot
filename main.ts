@@ -237,7 +237,7 @@ async function create_post_planned_games() {
       const text = `${tonightGames}\n${post}\n#NBA`;
       console.log(text, text.length);
       // Post the first message and save its postId (URI) and CID
-      /*const firstPostResponse = await agent.post({
+      const firstPostResponse = await agent.post({
         text: text,
       });
 
@@ -283,7 +283,6 @@ async function create_post_planned_games() {
   console.log("Thread posted successfully!");
 }
 
-await create_post_planned_games()
 
 async function updateData(){
   const command = new Deno.Command('python3', {
