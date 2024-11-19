@@ -141,10 +141,13 @@ class Game():
                     # Parse naive datetime and localize to Eastern Time
                     est_time = est.localize(datetime.strptime(game_time, "%Y-%m-%d %I:%M %p"))
 
+                    # Convert directly to Zurich timezone
                     gameTimeLTZ = est_time.astimezone(zurich_tz)
 
+                    # Format time in Zurich timezone
                     gameTimeFormatted = gameTimeLTZ.strftime('%H:%M')
 
+                    # Append the formatted string
                     planned_games.append(
                         f.format(
                             awayTeam=self.get_team_by_id(game['VISITOR_TEAM_ID']),
