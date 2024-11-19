@@ -88,7 +88,7 @@ async function create_post_last_games() {
   const splited_post: string[] = [];
   const lastGamesScore = await get_last_scores();
   const resultOfTheNight = "Results of the night: ";
-  const maxContentLength = 300 - resultOfTheNight.length - 1 - 5; // Reserve space for "\n" and "#nba"
+  const maxContentLength = 300 - resultOfTheNight.length - 1 - 5; // Reserve space for "\n" and "#NBA"
 
   let start = 0;
 
@@ -119,7 +119,7 @@ async function create_post_last_games() {
     if (index === 0) {
       // Post the first message and save its postId (URI) and CID
       const firstPostResponse = await agent.post({
-        text: `${resultOfTheNight}\n${post}\n#nba`,
+        text: `${resultOfTheNight}\n${post}\n#NBA`,
       });
 
       // Extract the URI and CID for root and parent
@@ -136,7 +136,7 @@ async function create_post_last_games() {
       // Post replies in the thread
       if (dailyParentPostId && rootCid && parentCid) {
         await agent.post({
-          text: `${post}\n#nba`,
+          text: `${post}\n#NBA`,
           reply: {
             root: {
               uri: rootUri,
@@ -173,7 +173,7 @@ async function create_post_standings() {
     const chunks = [standings.slice(0, half), standings.slice(half)];
 
     for (const chunk of chunks) {
-      const postText = `${conference} Standings:\n${chunk.join('\n')}\n#nba`;
+      const postText = `${conference} Standings:\n${chunk.join('\n')}\n#NBA`;
 
       const postResponse = await agent.post({
         text: postText,
@@ -205,7 +205,7 @@ async function create_post_planned_games() {
   const splited_post: string[] = [];
   const plannedGames = await get_future_games();
   const tonightGames = "Tonight's Games: ";
-  const maxContentLength = 300 - tonightGames.length - 1 - 5; // Reserve space for "\n" and "#nba"
+  const maxContentLength = 300 - tonightGames.length - 1 - 5; // Reserve space for "\n" and "#NBA"
 
   let start = 0;
 
@@ -234,7 +234,7 @@ async function create_post_planned_games() {
 
   for (const [index, post] of splited_post.entries()) {
     if (index === 0) {
-      const text = `${tonightGames}\n${post}\n#nba`;
+      const text = `${tonightGames}\n${post}\n#NBA`;
       console.log(text, text.length);
       // Post the first message and save its postId (URI) and CID
       const firstPostResponse = await agent.post({
@@ -252,7 +252,7 @@ async function create_post_planned_games() {
 
       console.log(`First post created with URI: ${dailyParentPostId}, CID: ${rootCid}`);
     } else {
-      const text = `${post}\n#nba`;
+      const text = `${post}\n#NBA`;
       console.log(text, text.length);
       // Post replies in the thread
       if (dailyParentPostId && rootCid && parentCid) {
@@ -303,14 +303,12 @@ const last_games = new CronJob(scheduleExpression, create_post_last_games); // c
 const standings = new CronJob(scheduleExpressionMondayMorning, create_post_standings);
 const planned_games = new CronJob(scheduleExpressionEveryDayAt18, create_post_planned_games)
 
-retreiveData.start()
+/*retreiveData.start()
 last_games.start()
 standings.start()
-planned_games.start()
+planned_games.start()*/
 
 const testCronJob = new CronJob(scheduleExpressionMinute, async () => {
-  await create_post_last_games();
-  await create_post_standings();
   await create_post_planned_games();
 });
 //testCronJob.start()
