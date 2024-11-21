@@ -16,6 +16,8 @@ let dailyParentPostId: string | "";
 // get identifier and password from .env
 const IDENTIFIER = env["BLUESKY_IDENTIFIER"];
 const PASSWORD = env["BLUESKY_PASSWORD"];
+const MAX_POST_LENGTH = 300; // Adjust this value based on the actual maximum length allowed
+
 
 
 // create an agent
@@ -43,6 +45,33 @@ await retryWithBackoff(() => agent.login({
   identifier: IDENTIFIER,
   password: PASSWORD,
 }));
+
+async function postWithHashtag(agent, postText, options = {}) {
+  const hashtag = "#nba";
+  const fullText = `${postText}\n${hashtag}`;
+  const facets = [
+    {
+      index: {
+        byteStart: fullText.length - hashtag.length,
+        byteEnd: fullText.length,
+      },
+      features: [
+        {
+          $type: 'app.bsky.richtext.facet#tag',
+          tag: 'nba',
+        },
+      ],
+    },
+  ];
+
+  // Create the post with the facets
+  return await agent.post({
+    text: fullText,
+    facets,
+    ...options, // Pass additional options like reply if needed
+  });
+}
+
 
 async function get_last_scores(): Promise<string> {
   const decoder = new TextDecoder("utf-8");
@@ -89,113 +118,77 @@ function getCurrentTimestamp(): string {
 
 async function create_post_last_games() {
   const splitter = new GraphemeSplitter();
-  const splited_post: string[] = [];
+  const splited_post = [];
   const lastGamesScore = await get_last_scores();
   const resultOfTheNight = "Results of the night: ";
-  const maxContentLength = 300 - resultOfTheNight.length - 1 - 5; // Reserve space for "\n" and "#NBA"
+  const maxContentLength = 300 - resultOfTheNight.length - 1 - 5;
 
   let start = 0;
-
   while (start < lastGamesScore.length) {
     let end = start + maxContentLength;
     const substring = lastGamesScore.slice(start, end);
-
-    const graphemeCount = splitter.splitGraphemes(substring).length;
-
-    if (graphemeCount <= maxContentLength) {
-      const splitIndex = lastGamesScore.lastIndexOf("\n--", end);
-      if (splitIndex > start && splitIndex !== -1) {
-        end = splitIndex; // End the chunk at "\n--"
-      }
+    const resultOfTheNight = "Results of the night: ";
+    const splitIndex = lastGamesScore.lastIndexOf("\n--", end);
+    if (splitIndex > start && splitIndex !== -1) {
+      end = splitIndex;
     }
-
     splited_post.push(lastGamesScore.slice(start, end).trim());
-    start = end + 4; // Skip over "\n--" for the next start
+    start = end + 4;
   }
 
-  let dailyParentPostId: string ="";
-  let rootUri: string = "";
-  let parentUri: string = "";
-  let rootCid: string = "";
-  let parentCid: string = "";
+  let parentUri = null;
+  let parentCid = null;
 
   for (const [index, post] of splited_post.entries()) {
-    if (index === 0) {
-      // Post the first message and save its postId (URI) and CID
-      const firstPostResponse = await agent.post({
-        text: `${resultOfTheNight}\n${post}\n #NBA`,
-      });
-
-      // Extract the URI and CID for root and parent
-      dailyParentPostId = firstPostResponse?.uri || "";
-      rootUri = dailyParentPostId;
-      parentUri = dailyParentPostId; 
-
-      rootCid = firstPostResponse?.cid || ""; 
-      parentCid = rootCid; // For the first reply, parentCID is the same as rootCID
-
-      console.log(`First post created with URI: ${dailyParentPostId}, CID: ${rootCid}`);
-    } else {
-      // Post replies in the thread
-      if (dailyParentPostId !== "" && rootCid !== "" && parentCid !== "") {
-        await agent.post({
-          text: `${post}\n#NBA`,
-          reply: {
-            root: {
-              uri: rootUri,
-              cid: rootCid, // Use the correct cid from the response
+    const options =
+      index > 0 && parentUri && parentCid
+        ? {
+            reply: {
+              root: { uri: parentUri, cid: parentCid },
+              parent: { uri: parentUri, cid: parentCid },
             },
-            parent: {
-              uri: parentUri,
-              cid: parentCid, // Use the correct cid from the response
-            }
-          },
-        });
+          }
+        : {};
 
-        // Update parent URI and CID for the next reply
-        parentUri = dailyParentPostId;
-        parentCid = rootCid; // For replies, the parent CID remains the same as the root CID
-      } else {
-        console.error("No parent post ID or CID found, cannot continue thread.");
-        break;
-      }
+    const response = await postWithHashtag(agent, `${resultOfTheNight}\n${post}`, options);
+
+    if (index === 0) {
+      parentUri = response?.uri || null;
+      parentCid = response?.cid || null;
     }
   }
 
-  console.log(`Thread posted successfully at ${getCurrentTimestamp()}!`);
+  console.log("Thread posted successfully!");
 }
 
 async function create_post_standings() {
   const standings = await get_standings();
 
-  const splitAndPost = async (conference: string, standings: string[]) => {
-    let parentUri: string | null = null;
-    let parentCid: string | null = null;
+  const splitAndPost = async (conference, standings) => {
+    let parentUri = null;
+    let parentCid = null;
 
     const half = Math.ceil(standings.length / 2);
     const chunks = [standings.slice(0, half), standings.slice(half)];
 
     for (const chunk of chunks) {
-      const postText = `${conference} Standings:\n${chunk.join('\n')}\n #NBA`;
+      const postText = `${conference} Standings:\n${chunk.join("\n")}`;
+      const options =
+        parentUri && parentCid
+          ? {
+              reply: {
+                root: { uri: parentUri, cid: parentCid },
+                parent: { uri: parentUri, cid: parentCid },
+              },
+            }
+          : {};
 
-      const postResponse = await agent.post({
-        text: postText,
-        reply: parentUri && parentCid ? {
-          root: {
-            uri: parentUri,
-            cid: parentCid,
-          },
-          parent: {
-            uri: parentUri,
-            cid: parentCid,
-           }
-        } : undefined,
-      });
+      const response = await postWithHashtag(agent, postText, options);
 
-      parentUri = postResponse?.uri || null;
-      parentCid = postResponse?.cid || null;
-
-      console.log(`[${getCurrentTimestamp()}]Posted:: ${postText}`, postText.length);
+      if (!parentUri && !parentCid) {
+        parentUri = response?.uri || null;
+        parentCid = response?.cid || null;
+      }
     }
   };
 
@@ -203,16 +196,15 @@ async function create_post_standings() {
   await splitAndPost("Western Conference", standings.west);
 }
 
-const MAX_POST_LENGTH = 300; // Adjust this value based on the actual maximum length allowed
-
 async function create_post_planned_games() {
   const plannedGames = await get_future_games();
 
   if (plannedGames.length <= MAX_POST_LENGTH) {
     // Post the entire plannedGames content as a single post
-    const firstPostResponse = await agent.post({
-      text: `Tonight's games: \n${plannedGames}`,
-    });
+    const firstPostResponse = await postWithHashtag(
+      agent,
+      `Tonight's games: \n${plannedGames}`
+    );
 
     const dailyParentPostId = firstPostResponse?.uri || "";
     const rootCid = firstPostResponse?.cid || "";
@@ -221,7 +213,7 @@ async function create_post_planned_games() {
   } else {
     // Split the plannedGames content into multiple posts
     const splited_post = splitText(plannedGames, MAX_POST_LENGTH);
-    console.log(splited_post)
+    console.log(splited_post);
 
     let dailyParentPostId = "";
     let rootUri = "";
@@ -230,11 +222,11 @@ async function create_post_planned_games() {
     let parentCid = "";
 
     for (const [index, post] of splited_post.entries()) {
+      const postText = `Tonight's games: \n${post}`;
+
       if (index === 0) {
         // Post the first message and save its postId (URI) and CID
-        const firstPostResponse = await agent.post({
-          text: `Tonight's game: \n${post}`,
-        });
+        const firstPostResponse = await postWithHashtag(agent, postText);
 
         // Extract the URI and CID for root and parent
         dailyParentPostId = firstPostResponse?.uri || "";
@@ -248,23 +240,24 @@ async function create_post_planned_games() {
       } else {
         // Post replies in the thread
         if (dailyParentPostId !== "" && rootCid !== "" && parentCid !== "") {
-          await agent.post({
-            text: `${post}\n#NBA`,
+          const replyOptions = {
             reply: {
               root: {
                 uri: rootUri,
-                cid: rootCid, // Use the correct cid from the response
+                cid: rootCid, // Use the correct CID from the response
               },
               parent: {
                 uri: parentUri,
-                cid: parentCid, // Use the correct cid from the response
+                cid: parentCid, // Use the correct CID from the response
               },
             },
-          });
+          };
+
+          const response = await postWithHashtag(agent, postText, replyOptions);
 
           // Update parent URI and CID for the next reply
-          parentUri = dailyParentPostId;
-          parentCid = rootCid; // For replies, the parent CID remains the same as the root CID
+          parentUri = response?.uri || dailyParentPostId;
+          parentCid = response?.cid || rootCid;
         } else {
           console.error("No parent post ID or CID found, cannot continue thread.");
           break;
@@ -274,6 +267,7 @@ async function create_post_planned_games() {
     console.log(`[${getCurrentTimestamp()}] Thread posted successfully!`);
   }
 }
+
 
 function splitText(text: string, maxLength: number): string[] {
   const result = [];
@@ -322,11 +316,13 @@ planned_games.start()
 
 
 
+
 const testCronJob = new CronJob(scheduleExpressionMinute, async () => {
-  await create_post_planned_games();
+  await create_post_last_games(), 
+  await create_post_planned_games(),
+  await create_post_standings()
 });
 //testCronJob.start()
-
 
 // Function to delete all posts
 async function deleteAllPosts() {
@@ -365,4 +361,4 @@ async function deleteAllPosts() {
     console.error("Error deleting posts:", error);
   }
 }
-//await deleteAllPosts();
+await deleteAllPosts();
