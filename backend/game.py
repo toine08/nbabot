@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta, date
 import json
+from colorist import Color
 import pytz
 from dateutil import parser,tz
 from nba_api.live.nba.endpoints import scoreboard
@@ -9,7 +10,18 @@ from nba_api.stats.endpoints import scoreboardv2,leaguestandings
 
 class Game():
     def __init__(self):
-        pass
+        self.local_timzone = pytz.timezone("Europe/Zurich")
+        self.time_format = "%Y.%m.%d, %H:%M"
+
+    def log(self,message, type):
+        now = datetime.now().astimezone(self.local_timzone).strftime(self.time_format)
+        if type == "error":
+            print(f"[{now}] {Color.RED}{message}{Color.OFF}")
+        if type == "success":
+            print(f"[{now}] {Color.GREEN}{message}{Color.OFF}")
+        else:
+            print(f"[{now}] {message}")
+
     def parse_game_time(self,raw_time, game_date):
         # Remove the " ET" suffix
         clean_time = raw_time.replace(" ET", "")
@@ -27,8 +39,7 @@ class Game():
             utc_datetime = est_datetime.astimezone(pytz.utc)
             
             # Convert to Local Time (e.g., Switzerland)
-            local_timezone = pytz.timezone("Europe/Zurich")
-            local_datetime = utc_datetime.astimezone(local_timezone)
+            local_datetime = utc_datetime.astimezone(self.local_timzone)
             
             return {
                 "game_datetime_est": est_datetime,
@@ -36,7 +47,7 @@ class Game():
                 "game_datetime_local": local_datetime
             }
         except Exception as e:
-            print(f"Error parsing game time '{raw_time}': {e}")
+            self.log("Error parsing game time '{raw_time}': {e}", "error")
             return None
     
     def get_standings(self):
@@ -63,15 +74,13 @@ class Game():
                 elif conference == 'West':
                     west_standings.append(team_record)
             else:
-                print("No team ID found for this entry")
+                self.log("No team ID found for this entry", "error")
 
         return {'East': east_standings, 'West': west_standings}
                      
     def get_team_by_id(self,id):
         teamName = teams.find_team_name_by_id(id)
-        print(teamName["full_name"], len(teamName["full_name"]))
         if len(teamName["full_name"])>12:
-            print(teamName)
             return teamName["nickname"]
         else:
             return teamName['full_name']
@@ -115,21 +124,19 @@ class Game():
     
     def print_last_score(self):
         results = self.get_last_games_score()
-        print("Result of the night:")
         for result in results:
             print(result, "\n")
 
     def get_futur_games(self):
         planned_games = []
         today = datetime.now(timezone.utc)  # Ensure 'today' is timezone-aware
-        today_str = today.strftime('%Y-%m-%d')
+        today_str = today.strftime(self.time_format)
 
         board = scoreboardv2.ScoreboardV2(game_date=today_str)
         games = board.get_normalized_dict()['GameHeader']
 
         f = "{awayTeam} vs. {homeTeam} @ {gameTimeLTZ}"
         est = pytz.timezone('US/Eastern')
-        zurich_tz = pytz.timezone('Europe/Zurich')
 
         for game in games:
             game_status = game["GAME_STATUS_TEXT"]
@@ -142,7 +149,7 @@ class Game():
                     est_time = est.localize(datetime.strptime(game_time, "%Y-%m-%d %I:%M %p"))
 
                     # Convert directly to Zurich timezone
-                    gameTimeLTZ = est_time.astimezone(zurich_tz)
+                    gameTimeLTZ = est_time.astimezone(self.local_timzone)
 
                     # Format time in Zurich timezone
                     gameTimeFormatted = gameTimeLTZ.strftime('%H:%M')
@@ -156,7 +163,7 @@ class Game():
                         )
                     )
                 except ValueError as e:
-                    print(f"Error parsing game time '{game_time}': {e}")
+                    self.log("Error parsing game time '{game_time}': {e}", "error")
 
         if not planned_games:
             planned_games.append("No game planned")
@@ -175,5 +182,5 @@ class Game():
         with open("future_games.json", 'w') as outfile:
             json.dump(future_games, outfile, indent=4)
             
-        print("JSON has been exported")
+        self.log("JSON has been exported", "success")
         
