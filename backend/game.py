@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta, date
 import json
+import os
 from colorist import Color
 import pytz
 from dateutil import parser,tz
@@ -175,12 +176,22 @@ class Game():
         results = self.get_last_games_score()
         standing = self.return_standings()
         future_games = self.get_futur_games()
-        with open("last_games_score.json", "w") as outfile:
+
+        # Get the directory of the current script
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Define file paths
+        last_games_score_path = os.path.join(backend_dir, "last_games_score.json")
+        standing_path = os.path.join(backend_dir, "standing.json")
+        future_games_path = os.path.join(backend_dir, "future_games.json")
+
+        # Write JSON files
+        with open(last_games_score_path, "w") as outfile:
             json.dump(results, outfile, indent=4)
-        with open("standing.json", 'w') as outfile:
+        with open(standing_path, 'w') as outfile:
             json.dump(standing, outfile, indent=4)
-        with open("future_games.json", 'w') as outfile:
+        with open(future_games_path, 'w') as outfile:
             json.dump(future_games, outfile, indent=4)
-            
+
         self.log("JSON has been exported", "success")
         
