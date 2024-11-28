@@ -2,7 +2,7 @@ import { load } from "std/dotenv/mod.ts";
 import { CronJob } from "cron";
 import api from "@atproto/api";
 const { BskyAgent } = api;
-
+import GraphemeSplitter from "npm:grapheme-splitter";
 // Types
 interface PostOptions {
   reply?: {
@@ -26,11 +26,11 @@ const CONFIG = {
   MAX_POST_LENGTH: 300,
   HASHTAG: "#nba",
   SCHEDULES: {
-    DATA_UPDATE: "30 * * * *",    // Every 30 minutes
-    LAST_GAMES: "0 7 * * *",        // Daily at 7 AM
-    STANDINGS: "0 8 * * 1",         // Mondays at 8 AM
-    PLANNED_GAMES: "0 18 * * *",    // Daily at 6 PM  
-    TEST: "* * * * *" ,
+    DATA_UPDATE: "30 * * * *", // Every 30 minutes
+    LAST_GAMES: "0 7 * * *", // Daily at 7 AM
+    STANDINGS: "0 8 * * 1", // Mondays at 8 AM
+    PLANNED_GAMES: "0 18 * * *", // Daily at 6 PM
+    TEST: "* * * * *",
   },
   RETRY: {
     MAX_ATTEMPTS: 5,
@@ -53,10 +53,13 @@ class PostingState {
     return PostingState.instance;
   }
 
-  async withLock<T>(operation: string, fn: () => Promise<T>): Promise<T | null> {
+  async withLock<T>(
+    operation: string,
+    fn: () => Promise<T>
+  ): Promise<T | null> {
     const now = Date.now();
     const lastPost = this.lastPostTime[operation];
-    
+
     // Prevent duplicate posts within 5 minutes
     if (lastPost && now - lastPost < 5 * 60 * 1000) {
       console.log(`Skipping ${operation}: too soon since last post`);
@@ -97,10 +100,12 @@ class BlueSkyManager {
       restrictEnvAccessTo: ["BLUESKY_IDENTIFIER", "BLUESKY_PASSWORD"],
     });
 
-    await this.retryWithBackoff(() => this.agent.login({
-      identifier: env["BLUESKY_IDENTIFIER"],
-      password: env["BLUESKY_PASSWORD"],
-    }));
+    await this.retryWithBackoff(() =>
+      this.agent.login({
+        identifier: env["BLUESKY_IDENTIFIER"],
+        password: env["BLUESKY_PASSWORD"],
+      })
+    );
   }
 
   private async retryWithBackoff<T>(
@@ -113,27 +118,34 @@ class BlueSkyManager {
     } catch (error) {
       if (retries > 0 && error?.message?.includes("Rate Limit Exceeded")) {
         console.log(`Rate limit exceeded. Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
         return this.retryWithBackoff(fn, retries - 1, delay * 2);
       }
       throw error;
     }
   }
 
-  async postWithHashtag(postText: string, options: PostOptions = {}): Promise<PostResponse> {
+  async postWithHashtag(
+    postText: string,
+    options: PostOptions = {}
+  ): Promise<PostResponse> {
     const fullText = `${postText}\n${CONFIG.HASHTAG}`;
-    const facets = [{
-      index: {
-        byteStart: fullText.length - CONFIG.HASHTAG.length,
-        byteEnd: fullText.length,
+    const facets = [
+      {
+        index: {
+          byteStart: fullText.length - CONFIG.HASHTAG.length,
+          byteEnd: fullText.length,
+        },
+        features: [
+          {
+            $type: "app.bsky.richtext.facet#tag",
+            tag: "nba",
+          },
+        ],
       },
-      features: [{
-        $type: 'app.bsky.richtext.facet#tag',
-        tag: 'nba',
-      }],
-    }];
+    ];
 
-    return this.retryWithBackoff(() => 
+    return this.retryWithBackoff(() =>
       this.agent.post({
         text: fullText,
         facets,
@@ -143,20 +155,58 @@ class BlueSkyManager {
   }
 
   async createThread(posts: string[], prefix = ""): Promise<void> {
+    const splitter = new GraphemeSplitter();
+    const maxContentLength = 300 - prefix.length;
     let parentUri: string | null = null;
     let parentCid: string | null = null;
 
-    for (const [index, post] of posts.entries()) {
-      const options: PostOptions = index > 0 && parentUri && parentCid
-        ? {
-            reply: {
-              root: { uri: parentUri, cid: parentCid },
-              parent: { uri: parentUri, cid: parentCid },
-            },
-          }
-        : {};
+    // Combine all posts into a single string
+    const combinedPosts = posts.join("\n");
 
-      const response = await this.postWithHashtag(`${prefix}${post}`, options);
+    // Split the combined string into chunks that fit within the allowed length
+    const chunks = [];
+    let start = 0;
+    while (start < combinedPosts.length) {
+      let end = start + maxContentLength;
+      if (end > combinedPosts.length) {
+        end = combinedPosts.length;
+      }
+
+      let substring = combinedPosts.slice(start, end);
+      let splitIndex = substring.lastIndexOf("\n");
+      if (splitIndex === -1 || splitIndex <= start) {
+        splitIndex = end;
+      } else {
+        splitIndex += 1; // Include the newline character
+      }
+
+      const chunk = combinedPosts.slice(start, splitIndex).trim();
+      // Check if the chunk contains letters or numbers and is at least 10 characters long
+      if (chunk.length >= 10 && /[a-zA-Z0-9]/.test(chunk)) {
+        chunks.push(chunk);
+      }
+      start = splitIndex;
+    }
+
+    console.log(`Splitted chunks: ${chunks}`);
+    for (const [index, chunk] of chunks.entries()) {
+      console.log(`Chunk ${index + 1}: ${chunk}`);
+    }
+
+    // Create a post for each chunk
+    for (const [index, chunk] of chunks.entries()) {
+      const text = `${prefix}${chunk}`;
+      const options: PostOptions =
+        index > 0 && parentUri && parentCid
+          ? {
+              reply: {
+                root: { uri: parentUri, cid: parentCid },
+                parent: { uri: parentUri, cid: parentCid },
+              },
+            }
+          : {};
+
+      const response = await this.postWithHashtag(text, options);
 
       if (index === 0) {
         parentUri = response?.uri || null;
@@ -183,8 +233,12 @@ class DataManager {
   async getStandings(): Promise<Standings> {
     const ranking = await this.readJsonFile("./backend/standing.json");
     return {
-      east: ranking.East.map((team: string, index: number) => `${index + 1}. ${team}`),
-      west: ranking.West.map((team: string, index: number) => `${index + 1}. ${team}`)
+      east: ranking.East.map(
+        (team: string, index: number) => `${index + 1}. ${team}`
+      ),
+      west: ranking.West.map(
+        (team: string, index: number) => `${index + 1}. ${team}`
+      ),
     };
   }
 
@@ -196,7 +250,7 @@ class DataManager {
   private splitText(text: string): string[] {
     const chunks: string[] = [];
     let currentChunk = "";
-    
+
     for (const line of text.split("\n")) {
       if ((currentChunk + line + "\n").length > CONFIG.MAX_POST_LENGTH) {
         if (currentChunk) chunks.push(currentChunk.trim());
@@ -205,13 +259,13 @@ class DataManager {
         currentChunk += line + "\n";
       }
     }
-    
+
     if (currentChunk.trim()) chunks.push(currentChunk.trim());
     return chunks;
   }
 
   async updateData(): Promise<void> {
-    const command = new Deno.Command('python3', {
+    const command = new Deno.Command("python3", {
       args: ["./backend/main.py"],
     });
     const { stdout, stderr } = await command.output();
@@ -247,18 +301,18 @@ class PostManager {
   async postStandings(): Promise<void> {
     await this.state.withLock("standings", async () => {
       const standings = await this.data.getStandings();
-      
+
       // Post Eastern Conference
       const eastChunks = this.splitArray(standings.east, 2);
       await this.bsky.createThread(
-        eastChunks.map(chunk => chunk.join("\n")),
+        eastChunks.map((chunk) => chunk.join("\n")),
         "Eastern Conference Standings:\n"
       );
 
       // Post Western Conference
       const westChunks = this.splitArray(standings.west, 2);
       await this.bsky.createThread(
-        westChunks.map(chunk => chunk.join("\n")),
+        westChunks.map((chunk) => chunk.join("\n")),
         "Western Conference Standings:\n"
       );
 
@@ -294,11 +348,12 @@ async function main() {
     new CronJob(CONFIG.SCHEDULES.LAST_GAMES, () => postManager.postLastGames()).start();
     new CronJob(CONFIG.SCHEDULES.STANDINGS, () => postManager.postStandings()).start();
     new CronJob(CONFIG.SCHEDULES.PLANNED_GAMES, () => postManager.postPlannedGames()).start();
-
-    //new CronJob(CONFIG.SCHEDULES.TEST, ()=> postManager.postPlannedGames()).start()
-    console.log('NBA Bot started successfully!');
+    /*new CronJob(CONFIG.SCHEDULES.TEST, () =>
+      postManager.postLastGames()
+    ).start();*/
+    console.log("NBA Bot started successfully!");
   } catch (error) {
-    console.error('Failed to start NBA Bot:', error);
+    console.error("Failed to start NBA Bot:", error);
     Deno.exit(1);
   }
 }
