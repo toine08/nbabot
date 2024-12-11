@@ -348,18 +348,18 @@ async function main() {
     await postManager.initialize();
     const dataManager = new DataManager();
 
-    /* Schedule jobs
+    //Schedule jobs
     new CronJob(CONFIG.SCHEDULES.DATA_UPDATE, () => dataManager.updateData()).start();
     new CronJob(CONFIG.SCHEDULES.LAST_GAMES, () => postManager.postLastGames()).start();
     new CronJob(CONFIG.SCHEDULES.STANDINGS, () => postManager.postStandings()).start();
     new CronJob(CONFIG.SCHEDULES.PLANNED_GAMES, () => postManager.postPlannedGames()).start();
-    */
+    /*
    new CronJob(CONFIG.SCHEDULES.TEST, () =>
-      postManager.postLastGames(),
+      //postManager.postLastGames(),
       //postManager.postPlannedGames(),
       //postManager.postStandings(),
 
-    ).start();
+    ).start();*/
     console.log("NBA Bot started successfully!");
   } catch (error) {
     console.error("Failed to start NBA Bot:", error);
