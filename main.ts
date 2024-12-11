@@ -156,58 +156,63 @@ class BlueSkyManager {
 
   async createThread(posts: string[], prefix = ""): Promise<void> {
     const splitter = new GraphemeSplitter();
-    const maxContentLength = 300 - prefix.length;
+    const maxContentLength = 300 - splitter.countGraphemes(prefix);
     let parentUri: string | null = null;
     let parentCid: string | null = null;
-
-    // Combine all posts into a single string
-    const combinedPosts = posts.join("\n");
-
-    // Split the combined string into chunks that fit within the allowed length
-    const chunks = [];
-    let start = 0;
-    while (start < combinedPosts.length) {
-      let end = start + maxContentLength;
-      if (end > combinedPosts.length) {
-        end = combinedPosts.length;
+  
+    // Custom splitting function to handle long lists more aggressively
+    const splitLongList = (list: string): string[] => {
+      const result: string[] = [];
+      const lines = list.split('\n');
+      
+      let currentChunk = [];
+      let currentLength = 0;
+  
+      for (const line of lines) {
+        // If adding this line would exceed the limit, start a new chunk
+        if (currentLength + splitter.countGraphemes(line) > maxContentLength) {
+          result.push(currentChunk.join('\n'));
+          currentChunk = [];
+          currentLength = 0;
+        }
+        
+        currentChunk.push(line);
+        currentLength += splitter.countGraphemes(line);
       }
-
-      let substring = combinedPosts.slice(start, end);
-      let splitIndex = substring.lastIndexOf("\n");
-      if (splitIndex === -1 || splitIndex <= start) {
-        splitIndex = end;
-      } else {
-        splitIndex += 1; // Include the newline character
+  
+      // Add the last chunk if not empty
+      if (currentChunk.length > 0) {
+        result.push(currentChunk.join('\n'));
       }
-
-      const chunk = combinedPosts.slice(start, splitIndex).trim();
-      // Check if the chunk contains letters or numbers and is at least 10 characters long
-      if (chunk.length >= 10 && /[a-zA-Z0-9]/.test(chunk)) {
-        chunks.push(chunk);
-      }
-      start = splitIndex;
+  
+      return result;
+    };
+  
+    // Split each post separately to handle long standings lists
+    const processedChunks: string[] = [];
+    for (const post of posts) {
+      const postChunks = splitLongList(post);
+      processedChunks.push(...postChunks);
     }
-
-    console.log(`Splitted chunks: ${chunks}`);
-    for (const [index, chunk] of chunks.entries()) {
+  
+    console.log(`Splitted chunks: ${processedChunks}`);
+    for (const [index, chunk] of processedChunks.entries()) {
       console.log(`Chunk ${index + 1}: ${chunk}`);
     }
-
+  
     // Create a post for each chunk
-    for (const [index, chunk] of chunks.entries()) {
+    for (const [index, chunk] of processedChunks.entries()) {
       const text = `${prefix}${chunk}`;
-      const options: PostOptions =
-        index > 0 && parentUri && parentCid
-          ? {
-              reply: {
-                root: { uri: parentUri, cid: parentCid },
-                parent: { uri: parentUri, cid: parentCid },
-              },
-            }
-          : {};
-
+      const options: PostOptions = index > 0 && parentUri && parentCid
+        ? {
+            reply: {
+              root: { uri: parentUri, cid: parentCid },
+              parent: { uri: parentUri, cid: parentCid },
+            },
+          }
+        : {};
+  
       const response = await this.postWithHashtag(text, options);
-
       if (index === 0) {
         parentUri = response?.uri || null;
         parentCid = response?.cid || null;
@@ -343,14 +348,18 @@ async function main() {
     await postManager.initialize();
     const dataManager = new DataManager();
 
-    // Schedule jobs
+    /* Schedule jobs
     new CronJob(CONFIG.SCHEDULES.DATA_UPDATE, () => dataManager.updateData()).start();
     new CronJob(CONFIG.SCHEDULES.LAST_GAMES, () => postManager.postLastGames()).start();
     new CronJob(CONFIG.SCHEDULES.STANDINGS, () => postManager.postStandings()).start();
     new CronJob(CONFIG.SCHEDULES.PLANNED_GAMES, () => postManager.postPlannedGames()).start();
-    /*new CronJob(CONFIG.SCHEDULES.TEST, () =>
-      postManager.postLastGames()
-    ).start();*/
+    */
+   new CronJob(CONFIG.SCHEDULES.TEST, () =>
+      postManager.postLastGames(),
+      //postManager.postPlannedGames(),
+      //postManager.postStandings(),
+
+    ).start();
     console.log("NBA Bot started successfully!");
   } catch (error) {
     console.error("Failed to start NBA Bot:", error);
