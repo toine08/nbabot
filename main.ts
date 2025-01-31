@@ -154,6 +154,19 @@ class BlueSkyManager {
     );
   }
 
+  async verifyAndPost(text: string, options: PostOptions = {}): Promise<void> {
+    const splitter = new GraphemeSplitter();
+    const maxContentLength = 300;
+  
+    if (splitter.countGraphemes(text) > maxContentLength) {
+      console.log("Text is too long, splitting into multiple posts.");
+      await this.createThread([text], options);
+    } else {
+      console.log("Text is within the limit, posting directly.");
+      await this.postWithHashtag(text, options);
+    }
+  }
+  
   async createThread(posts: string[], prefix = ""): Promise<void> {
     const splitter = new GraphemeSplitter();
     const maxContentLength = 300 - splitter.countGraphemes(prefix);
@@ -213,6 +226,7 @@ class BlueSkyManager {
         : {};
   
       const response = await this.postWithHashtag(text, options);
+  
       if (index === 0) {
         parentUri = response?.uri || null;
         parentCid = response?.cid || null;
