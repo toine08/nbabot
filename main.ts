@@ -36,6 +36,7 @@ const CONFIG = {
     MAX_ATTEMPTS: 5,
     INITIAL_DELAY: 1000,
   },
+  MAX_CHUNK_SIZE: 280, // Actual BlueSky limit
 } as const;
 
 // State management
@@ -187,36 +188,53 @@ class BlueSkyManager {
           result.push(currentChunk.join('\n'));
           currentChunk = [];
           currentLength = 0;
+          // If a single line is too long, split it into smaller pieces
+          if (lineLength > effectiveMaxLength) {
+            const words = line.split(' ');
+            currentChunk = '';
+            for (const word of words) {
+              const wordLength = splitter.countGraphemes(word + ' ');
+              if (splitter.countGraphemes(currentChunk) + wordLength > effectiveMaxLength) {
+                chunks.push(currentChunk.trim());
+                currentChunk = word + ' ';
+              } else {
+                currentChunk += word + ' ';
+              }
+            }
+          } else {
+            currentChunk = line + '\n';
+          }
+        } else {
+          currentChunk += line + '\n';
         }
-        
-        currentChunk.push(line);
-        currentLength += splitter.countGraphemes(line);
       }
-  
-      // Add the last chunk if not empty
-      if (currentChunk.length > 0) {
-        result.push(currentChunk.join('\n'));
+
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
       }
-  
-      return result;
+
+      return chunks;
     };
-  
-    // Split each post separately to handle long standings lists
-    const processedChunks: string[] = [];
+
+    let processedChunks: string[] = [];
     for (const post of posts) {
-      const postChunks = splitLongList(post);
-      processedChunks.push(...postChunks);
+      processedChunks = processedChunks.concat(splitPost(post));
     }
-  
-    console.log(`Splitted chunks: ${processedChunks}`);
+
+    console.log('Thread chunks:');
+    processedChunks.forEach((chunk, i) => {
+      const length = splitter.countGraphemes(chunk + '\n' + CONFIG.HASHTAG);
+      console.log(`Chunk ${i + 1}: ${length} chars`);
+      if (length > CONFIG.MAX_POST_LENGTH) {
+        console.error(`WARNING: Chunk ${i + 1} exceeds limit: ${length} chars`);
+      }
+    });
+
+    let parentUri: string | null = null;
+    let parentCid: string | null = null;
+
     for (const [index, chunk] of processedChunks.entries()) {
-      console.log(`Chunk ${index + 1}: ${chunk}`);
-    }
-  
-    // Create a post for each chunk
-    for (const [index, chunk] of processedChunks.entries()) {
-      const text = `${prefix}${chunk}`;
-      const options: PostOptions = index > 0 && parentUri && parentCid
+      const replyOptions: PostOptions = index > 0 && parentUri && parentCid
         ? {
             reply: {
               root: { uri: parentUri, cid: parentCid },
@@ -224,9 +242,9 @@ class BlueSkyManager {
             },
           }
         : {};
-  
-      const response = await this.postWithHashtag(text, options);
-  
+
+      const response = await this.postWithHashtag(chunk, replyOptions);
+
       if (index === 0) {
         parentUri = response?.uri || null;
         parentCid = response?.cid || null;
@@ -366,6 +384,7 @@ async function main() {
     new CronJob(CONFIG.SCHEDULES.DATA_UPDATE, () => dataManager.updateData()).start();
     new CronJob(CONFIG.SCHEDULES.LAST_GAMES, () => postManager.postLastGames()).start();
     new CronJob(CONFIG.SCHEDULES.STANDINGS, () => postManager.postStandings()).start();
+
     new CronJob(CONFIG.SCHEDULES.PLANNED_GAMES, () => postManager.postPlannedGames()).start();
     /*
    new CronJob(CONFIG.SCHEDULES.TEST, () =>
