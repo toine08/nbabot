@@ -274,7 +274,11 @@ class BlueSkyManager {
 
   async deleteAll(): Promise<void> {
     try {
-      const profile = await this.agent.getProfile({ actor: this.agent.session?.did });
+      if (!this.agent.session?.did) {
+        throw new Error("No active session found");
+      }
+
+      const profile = await this.agent.getProfile({ actor: this.agent.session.did });
       const feed = await this.agent.getAuthorFeed({ actor: profile.data.did });
       
       for (const post of feed.data.feed) {
